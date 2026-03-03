@@ -28,9 +28,10 @@ COLLISION_COLOR_WARNING = (0, 165, 255)
 COLLISION_COLOR_DANGER = (0, 0, 255)
 
 # ─── Alert Sounds ─────────────────────────────────
-SOUND_LANE_ALERT = "assets/sounds/lane_alert.mp3"
-SOUND_DROWSY_ALERT = "assets/sounds/drowsy_alert.mp3"
-SOUND_COLLISION_ALERT = "assets/sounds/collision_alert.mp3"
+# Update these lines in config.py
+SOUND_LANE_ALERT = "assets/sounds/lane_alert.wav"
+SOUND_DROWSY_ALERT = "assets/sounds/drowsy_alert.wav"
+SOUND_COLLISION_ALERT = "assets/sounds/collision_alert.wav"
 
 # ─── UI Colors (BGR format) ───────────────────────
 COLOR_GREEN = (0, 255, 0)
