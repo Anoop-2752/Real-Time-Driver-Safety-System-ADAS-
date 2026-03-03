@@ -1,26 +1,28 @@
-# test_object.py
+# test_drowsiness.py
 import cv2
-from modules.object_detection import ObjectDetector
+from modules.drowsiness_detection import DrowsinessDetector
 
-detector = ObjectDetector()
+detector = DrowsinessDetector()
 
-# Test on webcam (press Q to quit)
-cap = cv2.VideoCapture("assets/test_videos/dashcam.mp4")
-
-print("✅ Object Detection running... Press Q to quit")
+cap = cv2.VideoCapture(0)
+print("✅ Drowsiness Detection running...")
+print("💡 Try closing your eyes slowly to trigger alert")
+print("💡 Try yawning to trigger yawn alert")
+print("Press Q to quit")
 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
 
-    result_frame, detections, counts = detector.process(frame)
+    result_frame, drowsy, yawn = detector.process(frame)
 
-    # Print detections in terminal
-    if detections:
-        print(f"Detected: {counts}")
+    if drowsy:
+        print("🚨 DROWSINESS ALERT!")
+    if yawn:
+        print("😮 YAWNING DETECTED!")
 
-    cv2.imshow("Object Detection Test", result_frame)
+    cv2.imshow("Drowsiness Detection Test", result_frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
