@@ -21,7 +21,7 @@ Built with YOLOv8, MediaPipe, and OpenCV — deployable as a desktop dashboard o
 
 ## Demo
 
-[![Real-Time Driver Safety System Demo](https://img.youtube.com/vi/tohatVJFkyc/maxresdefault.jpg)](https://www.youtube.com/watch?v=tohatVJFkyc)
+[![Real-Time Driver Safety System Demo](https://img.youtube.com/vi/tohatVJFkyc/hqdefault.jpg)](https://www.youtube.com/watch?v=tohatVJFkyc)
 
 > Click the thumbnail to watch the full demo on YouTube
 
