@@ -6,6 +6,12 @@ FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 FPS = 30
 
+# ─── Demo Video Sources ───────────────────────────
+# Set USE_VIDEO = True to run from video files instead of live camera
+USE_VIDEO = True
+VIDEO_FRONT  = "assets/test_videos/dashcam.mp4"   # Road view
+VIDEO_DRIVER = "assets/test_videos/facecam.mp4"   # Driver face view
+
 # ─── Lane Detection ───────────────────────────────
 LANE_COLOR = (0, 255, 0)          # Green
 LANE_THICKNESS = 3
@@ -19,7 +25,11 @@ DETECTION_CLASSES = [0, 1, 2, 3, 5, 7]  # person, bicycle, car, motorbike, bus, 
 # ─── Drowsiness Detection ─────────────────────────
 EAR_THRESHOLD = 0.25              # Eye Aspect Ratio — below this = drowsy
 MAR_THRESHOLD = 0.6               # Mouth Aspect Ratio — above this = yawning
-DROWSY_FRAME_COUNT = 20           # Consecutive frames before alert triggers
+DROWSY_FRAME_COUNT = 20           # Consecutive frames before drowsiness alert triggers
+YAWN_FRAME_COUNT = 10             # Consecutive frames before yawn alert triggers
+
+# ─── Temporal Smoothing ───────────────────────────
+SMOOTHING_ALPHA = 0.3             # EMA weight: 0.3 = 30% new value, 70% history
 
 # ─── Collision Warning ────────────────────────────
 COLLISION_BOX_THRESHOLD = 0.35    # If bounding box occupies 35% of frame = danger

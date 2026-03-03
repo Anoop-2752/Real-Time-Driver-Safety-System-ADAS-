@@ -28,7 +28,7 @@ class CollisionWarner:
         self.danger_frame_count = 0
 
     # ─── Main Process Function ─────────────────────────────────
-    def process(self, frame, detections):
+    def process(self, frame: np.ndarray, detections: list) -> tuple[np.ndarray, str]:
         """
         Takes frame + detections from ObjectDetector
         Returns annotated frame + danger level
@@ -99,7 +99,8 @@ class CollisionWarner:
             self.danger_frame_count = 0
             return SAFE
 
-        return SAFE
+        # Count < threshold: hold the last confirmed state to avoid flickering
+        return self.danger_level
 
     # ─── Draw Collision Overlay ────────────────────────────────
     def _draw_collision_overlay(self, frame, vehicle):

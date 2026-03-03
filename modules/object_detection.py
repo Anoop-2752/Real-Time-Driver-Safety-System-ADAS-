@@ -37,7 +37,7 @@ class ObjectDetector:
         self.detection_counts = {}
 
     # ─── Main Process Function ─────────────────────────────────
-    def process(self, frame):
+    def process(self, frame: np.ndarray) -> tuple[np.ndarray, list, dict]:
         """
         Main function — takes raw frame, returns annotated frame + detections
         """

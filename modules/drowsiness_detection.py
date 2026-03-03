@@ -5,8 +5,8 @@ import numpy as np
 import mediapipe as mp
 from scipy.spatial import distance
 from config import (
-    EAR_THRESHOLD, MAR_THRESHOLD, DROWSY_FRAME_COUNT,
-    COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_WHITE, COLOR_ORANGE
+    EAR_THRESHOLD, MAR_THRESHOLD, DROWSY_FRAME_COUNT, YAWN_FRAME_COUNT,
+    SMOOTHING_ALPHA, COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_WHITE, COLOR_ORANGE
 )
 
 
@@ -38,7 +38,7 @@ class DrowsinessDetector:
         self.mar_value = 0.0
 
     # ─── Main Process Function ─────────────────────────────────
-    def process(self, frame):
+    def process(self, frame: np.ndarray) -> tuple[np.ndarray, bool, bool]:
         """
         Main function — takes driver camera frame, returns annotated frame + alerts
         """
@@ -55,13 +55,17 @@ class DrowsinessDetector:
                 # Get landmark coordinates
                 landmarks = self._get_landmarks(face_landmarks, w, h)
 
-                # Calculate EAR
+                # Calculate EAR and apply EMA smoothing
                 left_ear = self._calculate_ear(landmarks, self.LEFT_EYE)
                 right_ear = self._calculate_ear(landmarks, self.RIGHT_EYE)
-                self.ear_value = (left_ear + right_ear) / 2.0
+                raw_ear = (left_ear + right_ear) / 2.0
+                self.ear_value = (SMOOTHING_ALPHA * raw_ear
+                                  + (1 - SMOOTHING_ALPHA) * self.ear_value)
 
-                # Calculate MAR
-                self.mar_value = self._calculate_mar(landmarks, self.MOUTH)
+                # Calculate MAR and apply EMA smoothing
+                raw_mar = self._calculate_mar(landmarks, self.MOUTH)
+                self.mar_value = (SMOOTHING_ALPHA * raw_mar
+                                  + (1 - SMOOTHING_ALPHA) * self.mar_value)
 
                 # Draw eye and mouth contours
                 frame = self._draw_contours(frame, landmarks)
@@ -117,7 +121,7 @@ class DrowsinessDetector:
         mouth_height = distance.euclidean(top, bottom)
         mouth_width = distance.euclidean(left, right)
 
-        if mouth_width == 0:
+        if abs(mouth_width) < 1e-6:
             return 0.0
 
         mar = mouth_height / mouth_width
@@ -159,7 +163,7 @@ class DrowsinessDetector:
     def _check_yawning(self, mar):
         if mar > MAR_THRESHOLD:
             self.yawn_frame_count += 1
-            if self.yawn_frame_count >= 10:
+            if self.yawn_frame_count >= YAWN_FRAME_COUNT:
                 return True
         else:
             self.yawn_frame_count = 0

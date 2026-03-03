@@ -4,16 +4,26 @@ import cv2
 import numpy as np
 import pygame
 import time
+import logging
 import threading
+import concurrent.futures
 from modules.lane_detection import LaneDetector
 from modules.object_detection import ObjectDetector
 from modules.drowsiness_detection import DrowsinessDetector
 from modules.collision_warning import CollisionWarner
 from config import (
     CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT,
+    USE_VIDEO, VIDEO_FRONT, VIDEO_DRIVER,
     SOUND_LANE_ALERT, SOUND_DROWSY_ALERT, SOUND_COLLISION_ALERT,
     COLOR_WHITE, COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_ORANGE
 )
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 # ─── Dashboard Dimensions ──────────────────────────────────────
 DASH_W = 1280
@@ -26,7 +36,7 @@ DRIVER_H = 240
 
 class DriverSafetySystem:
     def __init__(self):
-        print("🚗 Initializing Driver Safety System...")
+        logger.info("Initializing Driver Safety System...")
 
         # Initialize all modules
         self.lane_detector = LaneDetector()
@@ -48,8 +58,7 @@ class DriverSafetySystem:
         self.frame_count = 0
         self.start_time = time.time()
 
-        print("✅ All modules loaded successfully!")
-        print("─" * 50)
+        logger.info("All modules loaded successfully.")
 
     # ─── Load Sounds ───────────────────────────────────────────
     def _load_sounds(self):
@@ -58,10 +67,9 @@ class DriverSafetySystem:
             sounds["lane"] = pygame.mixer.Sound(SOUND_LANE_ALERT)
             sounds["drowsy"] = pygame.mixer.Sound(SOUND_DROWSY_ALERT)
             sounds["collision"] = pygame.mixer.Sound(SOUND_COLLISION_ALERT)
-            print("✅ Sound files loaded!")
+            logger.info("Sound files loaded.")
         except Exception as e:
-            print(f"⚠️  Sound loading failed: {e}")
-            print("   Continuing without audio...")
+            logger.warning("Sound loading failed: %s — continuing without audio.", e)
         return sounds
 
     # ─── Play Alert Sound ──────────────────────────────────────
@@ -258,56 +266,95 @@ class DriverSafetySystem:
 
         return dashboard
 
+    # ─── Open Video Source ─────────────────────────────────────
+    def _open_source(self, source) -> cv2.VideoCapture:
+        cap = cv2.VideoCapture(source)
+        if isinstance(source, str):
+            logger.info("Opened video file: %s", source)
+        else:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+            logger.info("Opened camera index: %d", source)
+        return cap
+
+    # ─── Read Frame with Auto-Loop ─────────────────────────────
+    def _read_frame(self, cap: cv2.VideoCapture, source) -> tuple[bool, any]:
+        ret, frame = cap.read()
+        if not ret and isinstance(source, str):
+            # End of video file — loop back to start
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret, frame = cap.read()
+        return ret, frame
+
     # ─── Main Run Loop ─────────────────────────────────────────
     def run(self):
-        print("\n🚀 Starting Driver Safety System...")
-        print("📷 Camera initializing...")
+        logger.info("Starting Driver Safety System...")
 
-        cap = cv2.VideoCapture(CAMERA_INDEX)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+        if USE_VIDEO:
+            front_source  = VIDEO_FRONT
+            driver_source = VIDEO_DRIVER
+            logger.info("Demo mode: using video files.")
+        else:
+            front_source  = CAMERA_INDEX
+            driver_source = CAMERA_INDEX
+            logger.info("Live mode: using camera index %d.", CAMERA_INDEX)
 
-        if not cap.isOpened():
-            print("❌ Camera not found! Check CAMERA_INDEX in config.py")
+        cap_front  = self._open_source(front_source)
+        cap_driver = self._open_source(driver_source)
+
+        if not cap_front.isOpened():
+            logger.error("Could not open front source: %s", front_source)
+            return
+        if not cap_driver.isOpened():
+            logger.error("Could not open driver source: %s", driver_source)
+            cap_front.release()
             return
 
-        print("✅ Camera ready!")
-        print("Press Q to quit\n")
+        logger.info("Both sources ready. Press Q to quit.")
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                print("❌ Frame capture failed!")
-                break
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                while True:
+                    ret_f, front_raw  = self._read_frame(cap_front,  front_source)
+                    ret_d, driver_raw = self._read_frame(cap_driver, driver_source)
 
-            # Process front view
-            front_frame, lane_alert, detections, counts, danger_level = \
-                self._process_front(frame)
+                    if not ret_f or not ret_d:
+                        logger.error("Frame read failed — shutting down.")
+                        break
 
-            # Process driver view (same cam for testing)
-            driver_frame, drowsy_alert, yawn_alert = \
-                self._process_driver(frame)
+                    # Run front pipeline and driver pipeline in parallel
+                    front_future  = executor.submit(self._process_front,  front_raw.copy())
+                    driver_future = executor.submit(self._process_driver, driver_raw.copy())
 
-            # Audio alerts
-            self._handle_alerts(lane_alert, drowsy_alert, danger_level)
+                    front_frame, lane_alert, _, counts, danger_level = \
+                        front_future.result()
+                    driver_frame, drowsy_alert, yawn_alert = \
+                        driver_future.result()
 
-            # Build and show dashboard
-            dashboard = self._build_dashboard(
-                front_frame, driver_frame,
-                lane_alert, drowsy_alert,
-                yawn_alert, danger_level, counts
-            )
+                    # Audio alerts
+                    self._handle_alerts(lane_alert, drowsy_alert, danger_level)
 
-            cv2.imshow("Driver Safety System", dashboard)
+                    # Build and show dashboard
+                    dashboard = self._build_dashboard(
+                        front_frame, driver_frame,
+                        lane_alert, drowsy_alert,
+                        yawn_alert, danger_level, counts
+                    )
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                print("\n👋 Shutting down...")
-                break
+                    cv2.imshow("Driver Safety System", dashboard)
 
-        cap.release()
-        cv2.destroyAllWindows()
-        pygame.mixer.quit()
-        print("✅ System shutdown complete")
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        logger.info("User requested shutdown.")
+                        break
+
+        except Exception as e:
+            logger.exception("Unexpected error in main loop: %s", e)
+        finally:
+            cap_front.release()
+            cap_driver.release()
+            cv2.destroyAllWindows()
+            pygame.mixer.quit()
+            logger.info("System shutdown complete.")
 
 
 # ─── Entry Point ───────────────────────────────────────────────

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from config import (
     LANE_COLOR, LANE_THICKNESS, ROI_HEIGHT_RATIO,
-    COLOR_RED, COLOR_GREEN, COLOR_WHITE
+    COLOR_RED, COLOR_GREEN, COLOR_WHITE, SMOOTHING_ALPHA
 )
 
 
@@ -15,7 +15,7 @@ class LaneDetector:
         self.departure_alert = False
 
     # ─── Main Process Function ─────────────────────────────────
-    def process(self, frame):
+    def process(self, frame: np.ndarray) -> tuple[np.ndarray, bool]:
         """
         Main function — takes raw frame, returns annotated frame + alert status
         """
@@ -105,6 +105,21 @@ class LaneDetector:
         left_line = self._make_line(frame, left_lines)
         right_line = self._make_line(frame, right_lines)
 
+        # Apply EMA smoothing — keep previous value if no new line detected
+        if left_line is not None:
+            left_line = self._smooth_line(left_line, self.left_fit_avg)
+            self.left_fit_avg = left_line
+
+        if right_line is not None:
+            right_line = self._smooth_line(right_line, self.right_fit_avg)
+            self.right_fit_avg = right_line
+
+        # Fall back to last known good line if current frame has no detection
+        if left_line is None:
+            left_line = self.left_fit_avg
+        if right_line is None:
+            right_line = self.right_fit_avg
+
         return left_line, right_line
 
     def _make_line(self, frame, lines):
@@ -120,6 +135,15 @@ class LaneDetector:
         x2 = int((y2 - intercept) / slope)
 
         return (x1, y1, x2, y2)
+
+    def _smooth_line(self, new_line: tuple, prev_avg) -> tuple:
+        """Apply EMA smoothing to reduce frame-to-frame jitter."""
+        if prev_avg is None:
+            return new_line
+        return tuple(
+            int(SMOOTHING_ALPHA * n + (1 - SMOOTHING_ALPHA) * p)
+            for n, p in zip(new_line, prev_avg)
+        )
 
     # ─── Step 5: Draw Lanes ───────────────────────────────────
     def _draw_lanes(self, frame, left_line, right_line, height, width):

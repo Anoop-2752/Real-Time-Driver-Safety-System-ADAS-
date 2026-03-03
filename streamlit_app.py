@@ -93,7 +93,9 @@ def init_session_state():
         "counts":         {},
         "total_alerts":   0,
         "frame_count":    0,
-        "start_time":     time.time()
+        "start_time":     time.time(),
+        "was_alerted":    False,   # tracks previous frame's alert state for per-event counting
+        "cap":            None,    # VideoCapture stored to prevent leaks on rerun
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -255,6 +257,9 @@ def main():
     with col_stop:
         if st.button("⏹ Stop System", use_container_width=True):
             st.session_state.running = False
+            if st.session_state.cap is not None:
+                st.session_state.cap.release()
+                st.session_state.cap = None
 
     with col_clear:
         if st.button("🗑 Clear Alert Log", use_container_width=True):
@@ -321,14 +326,19 @@ def main():
     # ── Main Loop ──────────────────────────────────────────────
     if st.session_state.running:
         modules = load_modules()
-        cap = cv2.VideoCapture(camera_index)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
-        if not cap.isOpened():
-            st.error("❌ Camera not found!")
-            st.session_state.running = False
-            return
+        # Reuse existing capture if already open, otherwise create a new one
+        if st.session_state.cap is None or not st.session_state.cap.isOpened():
+            cap = cv2.VideoCapture(camera_index)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+            if not cap.isOpened():
+                st.error("❌ Camera not found!")
+                st.session_state.running = False
+                return
+            st.session_state.cap = cap
+        else:
+            cap = st.session_state.cap
 
         frame_time = time.time()
 
@@ -360,27 +370,24 @@ def main():
             st.session_state.danger_level  = danger_level
             st.session_state.counts        = counts
             st.session_state.frame_count  += 1
-            st.session_state.ear = getattr(
-                modules["drowsy"], "ear_value", 0.0
-            )
-            st.session_state.mar = getattr(
-                modules["drowsy"], "mar_value", 0.0
-            )
+            st.session_state.ear           = modules["drowsy"].ear_value
+            st.session_state.mar           = modules["drowsy"].mar_value
 
-            # Log alerts
-            if lane_alert or drowsy_alert or yawn_alert or danger_level != "SAFE":
+            # Alert counter: only increment on transition from no-alert → alert
+            is_alerted = (lane_alert or drowsy_alert or yawn_alert
+                          or danger_level != "SAFE")
+            if is_alerted and not st.session_state.was_alerted:
                 st.session_state.total_alerts += 1
                 alerts = []
-                if lane_alert:    alerts.append("Lane Departure")
-                if drowsy_alert:  alerts.append("Drowsiness")
-                if yawn_alert:    alerts.append("Yawning")
-                if danger_level != "SAFE":
-                    alerts.append(f"Collision {danger_level}")
-
+                if lane_alert:              alerts.append("Lane Departure")
+                if drowsy_alert:            alerts.append("Drowsiness")
+                if yawn_alert:              alerts.append("Yawning")
+                if danger_level != "SAFE":  alerts.append(f"Collision {danger_level}")
                 st.session_state.alert_log.append({
                     "time": time.strftime("%H:%M:%S"),
                     "msg":  " | ".join(alerts)
                 })
+            st.session_state.was_alerted = is_alerted
 
             # Convert to RGB for streamlit
             front_rgb  = cv2.cvtColor(front_frame,  cv2.COLOR_BGR2RGB)
@@ -398,7 +405,6 @@ def main():
                 use_column_width=True
             )
 
-        cap.release()
         st.info("⏹ System stopped")
 
 
