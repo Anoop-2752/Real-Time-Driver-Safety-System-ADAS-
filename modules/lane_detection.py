@@ -14,7 +14,7 @@ class LaneDetector:
         self.right_fit_avg = None
         self.departure_alert = False
 
-    def process(self, frame: np.ndarray) -> tuple[np.ndarray, bool]:
+    def process(self, frame):
         height, width = frame.shape[:2]
         edges = self._preprocess(frame)
         masked = self._region_of_interest(edges, height, width)
@@ -74,10 +74,10 @@ class LaneDetector:
             elif slope > 0.3:
                 right_lines.append((slope, intercept))
 
-        left_line = self._make_line(frame, left_lines)
+        left_line  = self._make_line(frame, left_lines)
         right_line = self._make_line(frame, right_lines)
 
-        # EMA smoothing — reduces frame-to-frame jitter
+        # smooth to reduce frame-to-frame jitter
         if left_line is not None:
             left_line = self._smooth_line(left_line, self.left_fit_avg)
             self.left_fit_avg = left_line
@@ -86,7 +86,7 @@ class LaneDetector:
             right_line = self._smooth_line(right_line, self.right_fit_avg)
             self.right_fit_avg = right_line
 
-        # Fall back to last known good line if none detected this frame
+        # fall back to last known position if not detected this frame
         if left_line is None:
             left_line = self.left_fit_avg
         if right_line is None:
@@ -108,7 +108,7 @@ class LaneDetector:
 
         return (x1, y1, x2, y2)
 
-    def _smooth_line(self, new_line: tuple, prev_avg) -> tuple:
+    def _smooth_line(self, new_line, prev_avg):
         if prev_avg is None:
             return new_line
         return tuple(
@@ -127,11 +127,10 @@ class LaneDetector:
             cv2.line(lane_overlay, (right_line[0], right_line[1]),
                      (right_line[2], right_line[3]), LANE_COLOR, LANE_THICKNESS)
 
-        # Fill lane corridor with semi-transparent green
         if left_line is not None and right_line is not None:
             pts = np.array([
-                [left_line[0], left_line[1]],
-                [left_line[2], left_line[3]],
+                [left_line[0],  left_line[1]],
+                [left_line[2],  left_line[3]],
                 [right_line[2], right_line[3]],
                 [right_line[0], right_line[1]]
             ], dtype=np.int32)
@@ -143,15 +142,14 @@ class LaneDetector:
         if left_line is None or right_line is None:
             return False
 
-        lane_center = (left_line[0] + right_line[0]) // 2
+        lane_center  = (left_line[0] + right_line[0]) // 2
         frame_center = width // 2
-        deviation = abs(lane_center - frame_center)
+        deviation    = abs(lane_center - frame_center)
 
-        # Alert if vehicle drifts more than 15% of frame width off-center
         return deviation > width * 0.15
 
     def _draw_status(self, frame, alert):
-        text  = "⚠ LANE DEPARTURE WARNING!" if alert else "✓ Lane: OK"
+        text  = "LANE DEPARTURE WARNING!" if alert else "Lane: OK"
         color = COLOR_RED if alert else COLOR_GREEN
         cv2.putText(frame, text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
         return frame

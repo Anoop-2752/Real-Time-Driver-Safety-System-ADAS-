@@ -1,7 +1,6 @@
 # modules/object_detection.py
 
 import cv2
-import numpy as np
 from ultralytics import YOLO
 from config import (
     YOLO_MODEL_PATH, YOLO_CONFIDENCE, DETECTION_CLASSES,
@@ -22,19 +21,18 @@ class ObjectDetector:
             7: "Truck"
         }
 
-        # BGR color per class
         self.class_colors = {
-            0: (0, 0, 255),      # Person → Red
-            1: (0, 255, 255),    # Bicycle → Yellow
-            2: (0, 255, 0),      # Car → Green
-            3: (255, 165, 0),    # Motorbike → Orange
-            5: (255, 0, 0),      # Bus → Blue
-            7: (128, 0, 128)     # Truck → Purple
+            0: (0, 0, 255),    # Person
+            1: (0, 255, 255),  # Bicycle
+            2: (0, 255, 0),    # Car
+            3: (255, 165, 0),  # Motorbike
+            5: (255, 0, 0),    # Bus
+            7: (128, 0, 128)   # Truck
         }
 
         self.detection_counts = {}
 
-    def process(self, frame: np.ndarray) -> tuple[np.ndarray, list, dict]:
+    def process(self, frame):
         results = self.model(frame, conf=YOLO_CONFIDENCE, verbose=False)
         detections = self._parse_detections(results)
         annotated_frame = self._draw_detections(frame.copy(), detections)
@@ -71,23 +69,16 @@ class ObjectDetector:
     def _draw_detections(self, frame, detections):
         for det in detections:
             x1, y1, x2, y2 = det["bbox"]
-            class_id   = det["class_id"]
-            label      = det["label"]
-            confidence = det["confidence"]
-            color      = self.class_colors.get(class_id, COLOR_WHITE)
+            color = self.class_colors.get(det["class_id"], COLOR_WHITE)
+            label_text = f"{det['label']} {det['confidence']:.2f}"
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
-            label_text = f"{label} {confidence:.2f}"
             (text_w, text_h), _ = cv2.getTextSize(
                 label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
             )
-            cv2.rectangle(frame,
-                          (x1, y1 - text_h - 10),
-                          (x1 + text_w + 5, y1),
-                          color, -1)
-            cv2.putText(frame, label_text,
-                        (x1 + 3, y1 - 5),
+            cv2.rectangle(frame, (x1, y1 - text_h - 10), (x1 + text_w + 5, y1), color, -1)
+            cv2.putText(frame, label_text, (x1 + 3, y1 - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLOR_WHITE, 2)
 
         return frame
@@ -106,7 +97,6 @@ class ObjectDetector:
         panel_height = 30 + (len(counts) * 25)
         cv2.rectangle(frame, (10, 55), (200, 55 + panel_height), (0, 0, 0), -1)
         cv2.rectangle(frame, (10, 55), (200, 55 + panel_height), COLOR_WHITE, 1)
-
         cv2.putText(frame, "Detections:", (15, 75),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLOR_YELLOW, 2)
 

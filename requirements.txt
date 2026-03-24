@@ -1,6 +1,5 @@
 # Computer Vision
 opencv-python==4.9.0.80
-opencv-contrib-python==4.9.0.80
 
 # Object Detection
 ultralytics==8.2.0
@@ -14,11 +13,7 @@ torchvision==0.17.2
 
 # Data Processing
 numpy==1.26.4
-pandas==2.2.2
-
-# Visualization
-matplotlib==3.8.4
-Pillow==10.3.0
+scipy==1.13.0
 
 # Audio Alerts
 pygame==2.5.2
@@ -26,7 +21,5 @@ pygame==2.5.2
 # Dashboard / Deployment
 streamlit==1.35.0
 
-# Utilities
-python-dotenv==1.0.1
-tqdm==4.66.4
-PyYAML==6.0.1
+# Testing
+pytest==8.2.0

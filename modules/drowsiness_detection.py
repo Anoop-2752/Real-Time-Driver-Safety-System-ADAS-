@@ -19,26 +19,25 @@ class DrowsinessDetector:
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5
         )
-        self.mp_drawing = mp.solutions.drawing_utils
 
-        # MediaPipe 468-point landmark indices for eyes and mouth
+        # landmark indices from MediaPipe's 468-point face mesh
         self.LEFT_EYE  = [362, 385, 387, 263, 373, 380]
         self.RIGHT_EYE = [33, 160, 158, 133, 153, 144]
         self.MOUTH     = [61, 291, 39, 181, 0, 17, 269, 405]
 
         self.drowsy_frame_count = 0
-        self.yawn_frame_count = 0
+        self.yawn_frame_count   = 0
         self.drowsy_alert = False
-        self.yawn_alert = False
+        self.yawn_alert   = False
         self.ear_value = 0.0
         self.mar_value = 0.0
 
-    def process(self, frame: np.ndarray) -> tuple[np.ndarray, bool, bool]:
+    def process(self, frame):
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.face_mesh.process(rgb_frame)
 
         self.drowsy_alert = False
-        self.yawn_alert = False
+        self.yawn_alert   = False
 
         if results.multi_face_landmarks:
             for face_landmarks in results.multi_face_landmarks:
@@ -47,20 +46,19 @@ class DrowsinessDetector:
 
                 left_ear  = self._calculate_ear(landmarks, self.LEFT_EYE)
                 right_ear = self._calculate_ear(landmarks, self.RIGHT_EYE)
-                raw_ear = (left_ear + right_ear) / 2.0
-                self.ear_value = (SMOOTHING_ALPHA * raw_ear
-                                  + (1 - SMOOTHING_ALPHA) * self.ear_value)
+                raw_ear   = (left_ear + right_ear) / 2.0
+                self.ear_value = SMOOTHING_ALPHA * raw_ear + (1 - SMOOTHING_ALPHA) * self.ear_value
 
                 raw_mar = self._calculate_mar(landmarks, self.MOUTH)
-                self.mar_value = (SMOOTHING_ALPHA * raw_mar
-                                  + (1 - SMOOTHING_ALPHA) * self.mar_value)
+                self.mar_value = SMOOTHING_ALPHA * raw_mar + (1 - SMOOTHING_ALPHA) * self.mar_value
 
                 frame = self._draw_contours(frame, landmarks)
                 self.drowsy_alert = self._check_drowsiness(self.ear_value)
                 self.yawn_alert   = self._check_yawning(self.mar_value)
                 frame = self._draw_metrics(frame)
         else:
-            frame = self._draw_no_face(frame)
+            cv2.putText(frame, "No Face Detected",
+                        (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, COLOR_ORANGE, 2)
 
         frame = self._draw_status(frame)
         return frame, self.drowsy_alert, self.yawn_alert
@@ -72,12 +70,8 @@ class DrowsinessDetector:
         return landmarks
 
     def _calculate_ear(self, landmarks, eye_indices):
-        p1 = landmarks[eye_indices[0]]
-        p2 = landmarks[eye_indices[1]]
-        p3 = landmarks[eye_indices[2]]
-        p4 = landmarks[eye_indices[3]]
-        p5 = landmarks[eye_indices[4]]
-        p6 = landmarks[eye_indices[5]]
+        p1, p2, p3 = landmarks[eye_indices[0]], landmarks[eye_indices[1]], landmarks[eye_indices[2]]
+        p4, p5, p6 = landmarks[eye_indices[3]], landmarks[eye_indices[4]], landmarks[eye_indices[5]]
 
         vertical_1 = distance.euclidean(p2, p6)
         vertical_2 = distance.euclidean(p3, p5)
@@ -100,20 +94,13 @@ class DrowsinessDetector:
         return mouth_height / mouth_width
 
     def _draw_contours(self, frame, landmarks):
-        left_eye_pts = np.array(
-            [landmarks[i] for i in self.LEFT_EYE], dtype=np.int32
-        )
-        cv2.polylines(frame, [left_eye_pts], True, COLOR_GREEN, 1)
+        left_eye_pts  = np.array([landmarks[i] for i in self.LEFT_EYE],  dtype=np.int32)
+        right_eye_pts = np.array([landmarks[i] for i in self.RIGHT_EYE], dtype=np.int32)
+        mouth_pts     = np.array([landmarks[i] for i in self.MOUTH],     dtype=np.int32)
 
-        right_eye_pts = np.array(
-            [landmarks[i] for i in self.RIGHT_EYE], dtype=np.int32
-        )
-        cv2.polylines(frame, [right_eye_pts], True, COLOR_GREEN, 1)
-
-        mouth_pts = np.array(
-            [landmarks[i] for i in self.MOUTH], dtype=np.int32
-        )
-        cv2.polylines(frame, [mouth_pts], True, COLOR_YELLOW, 1)
+        cv2.polylines(frame, [left_eye_pts],  True, COLOR_GREEN,  1)
+        cv2.polylines(frame, [right_eye_pts], True, COLOR_GREEN,  1)
+        cv2.polylines(frame, [mouth_pts],     True, COLOR_YELLOW, 1)
 
         return frame
 
@@ -154,19 +141,14 @@ class DrowsinessDetector:
 
         if self.drowsy_alert:
             cv2.rectangle(frame, (0, h - 60), (w, h), (0, 0, 180), -1)
-            cv2.putText(frame, "⚠ DROWSINESS ALERT! WAKE UP!",
+            cv2.putText(frame, "DROWSINESS ALERT! WAKE UP!",
                         (10, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.9, COLOR_WHITE, 2)
         elif self.yawn_alert:
             cv2.rectangle(frame, (0, h - 60), (w, h), (0, 140, 255), -1)
-            cv2.putText(frame, "⚠ YAWNING DETECTED! Take a break!",
+            cv2.putText(frame, "YAWNING DETECTED! Take a break!",
                         (10, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, COLOR_WHITE, 2)
         else:
-            cv2.putText(frame, "✓ Driver: Alert",
+            cv2.putText(frame, "Driver: Alert",
                         (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, COLOR_GREEN, 2)
 
-        return frame
-
-    def _draw_no_face(self, frame):
-        cv2.putText(frame, "⚠ No Face Detected!",
-                    (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, COLOR_ORANGE, 2)
         return frame

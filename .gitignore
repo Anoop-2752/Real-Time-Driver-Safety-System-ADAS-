@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local run scripts
+run_streamlit.bat
+run_desktop.bat
+
+# Personal documentation
+DOCUMENTATION.pdf
+DOCUMENTATION.md
+INTERVIEW_PREP.html
