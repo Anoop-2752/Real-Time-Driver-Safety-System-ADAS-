@@ -1,5 +1,5 @@
 # Computer Vision
-opencv-python==4.9.0.80
+opencv-python-headless==4.9.0.80
 
 # Object Detection
 ultralytics==8.2.0
@@ -14,9 +14,6 @@ torchvision==0.17.2
 # Data Processing
 numpy==1.26.4
 scipy==1.13.0
-
-# Audio Alerts
-pygame==2.5.2
 
 # Dashboard / Deployment
 streamlit==1.35.0
