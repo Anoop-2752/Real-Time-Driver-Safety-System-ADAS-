@@ -1,10 +1,10 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 opencv-python-headless
-ultralytics==8.2.0
-mediapipe==0.10.14
+ultralytics
+mediapipe==0.10.33
 torch==2.9.1+cpu
-torchvision==0.24.1+cpu
+torchvision
 numpy==1.26.4
 scipy
 streamlit
